@@ -46,8 +46,8 @@ stages:
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |
-              export ARM_ACCESS_KEY=$(ARM_ACCESS_KEY)
-              export SA_NAME=$(SA_NAME)
+              export ARM_ACCESS_KEY=$(ARM-ACCESS-KEY)
+              export SA_NAME=$(SA-NAME)
               az storage blob download --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).auto.tfvars" -f "$(Build.Repository.LocalPath)/$(RESOURCE_NAME).auto.tfvars"
               ls -ltrh
 
@@ -60,9 +60,9 @@ stages:
             addSpnToEnvironment: true
             scriptLocation: inlineScript
             inlineScript: |
-              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_TENANT_ID=$(ARM-TENANT-ID)
+              export ARM_CLIENT_ID=$(ARM-CLIENT-ID)
+              export ARM_CLIENT_SECRET=$(ARM-CLIENT-SECRET)
               export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
               terraform init -reconfigure -backend-config="key=$(RESOURCE_NAME).terraform.tfstates"
 
@@ -85,9 +85,9 @@ stages:
             addSpnToEnvironment: true
             scriptLocation: inlineScript
             inlineScript: |
-              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_TENANT_ID=$(ARM-TENANT-ID)
+              export ARM_CLIENT_ID=$(ARM-CLIENT-ID)
+              export ARM_CLIENT_SECRET=$(ARM-CLIENT-SECRET)
               export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
               terraform plan -destroy -var-file="$(RESOURCE_NAME).auto.tfvars" -out $(RESOURCE_NAME).json
               terraform show -json $(RESOURCE_NAME).json
@@ -102,9 +102,9 @@ stages:
             addSpnToEnvironment: true
             scriptLocation: inlineScript
             inlineScript: |
-              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_TENANT_ID=$(ARM-TENANT-ID)
+              export ARM_CLIENT_ID=$(ARM-CLIENT-ID)
+              export ARM_CLIENT_SECRET=$(ARM-CLIENT-SECRET)
               export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
               terraform apply $(RESOURCE_NAME).json
         
@@ -117,7 +117,7 @@ stages:
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |
-              export ARM_ACCESS_KEY=$(ARM_ACCESS_KEY)
-              export SA_NAME=$(SA_NAME)
+              export ARM_ACCESS_KEY=$(ARM-ACCESS-KEY)
+              export SA_NAME=$(SA-NAME)
               az storage blob delete --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).auto.tfvars"
               az storage blob delete --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).terraform.tfstates"

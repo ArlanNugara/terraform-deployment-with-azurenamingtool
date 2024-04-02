@@ -1,28 +1,6 @@
-# Getting Started
-To work on this project, you should have the git client and an editor (VS Code is free and capable)
+# Introduction
 
-If this is your first time using git, you will need to tell it your name and email address. This can be done using the following two commands (making the obvious changes)
-
-`git config --global user.name "Your Name"`
-
-`git config --global user.email you@example.com`
-
-# Table of Content
-
-- [Overview](#overview-of-the-process)
-- [General Configuration](#general-configuration)
-    - [Backend Configuration](#backend-configuration)
-    - [Variable Group](#variable-group)
-- [Generate Name](#generate-resource-name)
-    - [Basic Configuration](#basic-configurations)
-    - [API Keys](#api-keys)
-    - [Test API](#test-api)
-- [Deploy the Resource](#deploy-the-infrastructure)
-    - [Run Pipeline](#run-deploy-pipeline)
-    - [Verify Resource](#verify-deployed-resource)
-- [Destroy the Resource](#destroy-the-infrastructure)
-    - [Run Pipeline](#run-destroy-pipeline)
-    - [Verify Resource](#verify-destroyed-resource)
+To be filled by **Arlan / Anubhav**
 
 # Overview of the process
 
@@ -36,130 +14,158 @@ Destroy Process
 
 ![image](./images/Destroy-Diagram.png)
 
-# General Configuration
+# Prerequisites
 
-## Backend Configuration
+## Azure Storage Account
 
-The backend configuration is present in **provider.tf** file in the repo.
+Please create an [Azure Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-create?tabs=azure-portal#create-a-storage-account-1) and a [container](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-portal#create-a-container) named **tfstate** to store Terraform State Files (You may change the name of the container in **providers.tf**). Please note the Service Principle should have access to the Storage Account. Note the [Access Key](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal#view-account-access-keys) for the Storage Account from Azure Portal.
 
-```
-backend "azurerm" {
-  resource_group_name  = "usea1-sb-namingtool-rg"
-  storage_account_name = "usea1sb1namingtoolsa"
-  container_name       = "tfstate"
-  key                  = "PLACEHOLDER"
-}
-```
-
-You can make changes for all the values excluding the **key** value which is dynamically passed in pipeline task command to achieve dynamic state file name.
-
-```
-terraform init -reconfigure -backend-config="key=$TFSTATE_FILE.terraform.tfstates"
-```
-
-## Variable Group
-
-An Azure DevOps Pipeline Library is required to get values required for this process to run. Following KEY and their values should be added in Variable Group.
-
-|Key Name|Description|
+|Key Name|Value|
 |:---|:---|
-|API_KEY|Admin API Key from Azure Naming Tool|
-|API_URL|Azure Naming Tool URL|
-|ARM_ACCESS_KEY|Azure [Storage Account](#backend-configuration) Access Key|
-|SA_NAME|Azure [Storage Account](#backend-configuration) Name|
-|ARM_CLIENT_ID|Client ID of the App Registration|
-|ARM_CLIENT_SECRET|Client Secret of the App Registration|
-|ARM_TENANT_ID|Azure Tenant ID|
+|ARM-ACCESS-KEY|Azure Storage Account Access Key|
+|SA-NAME| Storage Account Name|
 
-# Generate Resource Name
+Note :: The details of the Storage Account must be filled in **provider.tf** file backend configuration.
+
+## Service Connection
+Azure DevOps Pipeline requires Service Connection to run tasks. The Service Principle should have access to Key Vault Secrets ([Get and List Permission](https://learn.microsoft.com/en-us/azure/devops/pipelines/release/azure-key-vault?view=azure-devops&tabs=yaml#set-up-azure-key-vault-access-policies)) to retrieve Key Vault Secret Values required during running the task. Please refer to this [official article](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml#create-a-service-connection) for creating the Service Connection from a Service Principle. Note the following values for a Service Principle from Azure Portal.
+
+|Key Name|Value|
+|:---|:---|
+|ARM-CLIENT-ID|Application ID of the Service Principle|
+|ARM-CLIENT-SECRET|Client Secret of the Service Principle|
+|ARM-SUBSCRIPTION-ID|Subscription ID of the Key Vault|
+|ARM-TENANT-ID|Azure Tenant ID|
+
+## Configure Azure Naming Tool
 
 It is out of the scope of this process to include full tutorial about Azure Naming Tool. However, please check few tutorial available [here](https://www.youtube.com/watch?v=Ztmxx_KhZdE) and [here](https://www.youtube.com/watch?v=gO5jAeqtWlc). As part of this POC project we have configured the Naming Tool to generate resource name.
 
-## Basic Configurations
+## Azure Naming Tool API Keys
 
-The Naming Tool uses Configuration defined by you to generate resource name. There are 2 parts of the Configuration - Base Configuration and Component Configuration.
-
-Base Configuration uses the Component Configuration to generate names whereas the Component Configuration contains the actual configuration.
-
-### Base Configuration
-
-As you can see it simply contains serial wise Components. You can move the components up or down depending on your naming standard. Ex - If you keep Location on top and the Location Component Configuration value for East US is **usea1** the resource name will start with **usea1-XXXX-XXXX**. Similarly, if location configuration is second in the list the resource name will be something like **XXXX-usea1-XXXX**
-
-![image](./images/Naming_Components.png)
-
-The delimiter is used to separate each components. Here in the configuration the delimiter is **-**. You can use any different delimiter to name your resources. Ex - For this delimiter configuration the resource name will be **XXXX-XXXX-XXXX-XXXX-XXXX**. You can only choose one delimiter in Naming Tool
-
-![image](./images/Naming_Delimiter.png)
-
-### Component Configuration
-
-The Component Configuration contains the actual configuration of the components. Here are few Examples of the configuration for this POC project
-
-Environment Configuration
-
-![image](./images/Naming_Environment.png)
-
-Function Configuration
-
-![image](./images/Naming_Function.png)
-
-Location Configuration
-
-![image](./images/Naming_Location.png)
-
-Organization Configuration
-
-![image](./images/Naming_Organization.png)
-
-Project/App/Service Configuration
-
-![image](./images/Naming_Project.png)
-
-Resource Type Configuration
-
-![image](./images/Naming_Resource.png)
-
-## API Keys
-
-The API key is used to authenticate external tools for getting names from the Azure Naming Tool. For security reason, the screenshot of API key is not added in this Readme file. However, in order to obtain an API key please follow the process -
+The API key is used to authenticate external tools for getting names from the Azure Naming Tool. In order to obtain an API key please follow the process -
 
 - Go to Azure Naming App Web Portal.
 - Login by clicking on **Admin** option from left menu.
 - Check the Keys under **API Keys** option.
 
-## Test API
+Note the following values
 
-To test the API name generation please follow the steps below -
+|Key Name|Value|
+|:---|:---|
+|API-URL|Azure Naming Tool URL|
+|API-KEY|Azure Naming Tool API Key|
 
-- On Azure Naming Tool Home Page click on the swagger API link.
+## Key Vault
+An Azure Key Vault is required to store Secrets which are used by the pipeline to authenticate against Azure and Azure DevOps to perform it's desired operation. Please note the Service Principle mentioned [above](#service-connection) must have **GET** and **LIST** for the Key Vault Secrets. Please [create the secrets](https://learn.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#add-a-secret-to-key-vault) in Azure Key Vault. You may refer to the [Service Connection](#service-connection) and [Azure DevOps PAT and URL](#azure-devops-pat-and-url) section for values.
 
-![image](./images/Naming_Tool_Home_Page.png)
+Secrets to be created in Azure Key Vault
 
-- Scroll down to **ResourceNamingRequests** and click on **/api/ResourceNamingRequests/RequestName** option
+```
+ARM-CLIENT-ID
+ARM-CLIENT-SECRET
+ARM-SUBSCRIPTION-ID
+ARM-TENANT-ID
+ARM-ACCESS-KEY
+SA-NAME
+API-KEY
+```
 
-![image](./images/Swagger_Resource_Name_Page.png)
+## Variable Groups
+The code needs an Azure DevOps Pipeline Variable Group linked to an existing Azure Key Vault containing the Secrets. Please refer to this [official article](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/variable-groups?view=azure-devops&tabs=yaml#link-secrets-from-an-azure-key-vault) for more details.
 
-- Click on **Try it out** button
+## Updating Pipeline YAML file with values
 
-![image](./images/Swagger_Resource_Name_tryout.png)
+Once done with all the [above steps](#prerequisites) update the both the pipeline files inside **.pipelines** folder in the repository. **You should also change values of Azure DevOps Pipeline Parameters as pr your Infrastructure. Please check [here](#general-parameters) for more details.**
 
-- Provide the details of Components and API Key and click on **Execute** button.
+```
+variables:
+  - name: AZURE_SERVICE_CONNECTION
+    value: '< SERVICE CONNECTION NAME >'
+  - group: '< VARIABLE GROUP NAME LINKED TO KEY VAULT >'
+  - name: SUBSCRIPTION_ID
+    ${{ if eq(parameters.Subscription, 'SUB-1') }}:
+      value: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx
+    ${{ if eq(parameters.Subscription, 'SUB-2') }}:
+      value: yyyyy-yyyyy-yyyyy-yyyyy-yyyyy
+```
 
-![image](./images/Swagger_Resource_Name_Execute.png)
+## Update Provider file with values
 
-- Check the name and result.
+You need to update **provider.tf** file with values for the [Azure Storage Account](#azure-storage-account) which will host the Terraform State file.
 
-![image](./images/Swagger_Resource_Name_Result.png)
+```
+backend "azurerm" {
+  resource_group_name  = "< Storage Account Resource Group Name >"
+  storage_account_name = "< Storage Account Name >"
+  container_name       = "tfstate"
+  key                  = "PLACEHOLDER"
+}
+```
 
-# Deploy the Infrastructure
+Note :: You can make changes for all the values excluding the **key** value which is dynamically passed in pipeline task command to achieve dynamic state file name.
 
-## Run Deploy Pipeline
+# Pipelines
 
-To run deploy pipeline please follow the steps below -
+Once the updates to the code is complete and the latest code is pushed to the repository please proceed to create the pipelines in Azure DevOps. Please follow the below instruction to create both ([Deploy](#creating-deploy-pipeline) and [Destroy](#creating-destroy-pipeline)) Pipelines.
 
-- Go to Azure DevOps Pipeline and click on **self-service-deploy-storage-account** pipeline.
-- Click on **Run Pipeline** from top right corner.
-- Provide the following values and click on **Run** button.
+## Creating Deploy Pipeline
+
+Please follow this instruction to create the deploy pipeline
+
+- Go to **Pipelines** in Azure DevOps
+- Click on **New Pipeline** from right top corner
+- Select **Azure Repos Git**
+- Select your repository containing this code
+- Select **Existing Azure Pipelines YAML file**
+- Select the branch and select path as **self-service-deploy-storage-account.yaml**
+- Click on **Continue**
+- Click on **Save** from **Run** drop down menu on top right corner
+- You may rename the pipeline by choosing **Rename/move** from top right corner Kebab menu
+
+### Running the Deploy Pipeline
+
+Please follow the instruction to run deploy pipelines
+
+- Go to **Pipelines** in Azure DevOps.
+- Click on **All** option and click on the deploy pipeline created [above](#creating-deploy-pipeline)
+- Click on **Run Pipeline** from top right corner
+- Fill up / select all the required mentioned [here](#pipeline-parameters)
+- Click on **Run** Button
+
+## Creating Destroy Pipeline
+
+Please follow this instruction to create the destroy pipeline
+
+- Go to **Pipelines** in Azure DevOps
+- Click on **New Pipeline** from right top corner
+- Select **Azure Repos Git**
+- Select your repository containing this code
+- Select **Existing Azure Pipelines YAML file**
+- Select the branch and select path as **elf-service-destroy-storage-account.yaml**
+- Click on **Continue**
+- Click on **Variables** button and then **New Variable**
+- Provide **Name** as **RESOURCE_NAME** and keep **Value** empty. Select **Let users override this value when running this pipeline**
+- Click on **OK** button and then on **Save** button
+- Click on **Save** button
+- You may rename the pipeline by choosing **Rename/move** from top right corner Kebab menu
+
+### Running the Destroy Pipeline
+
+Please follow the instruction to run destroy pipelines
+
+- Go to **Pipelines** in Azure DevOps.
+- Click on **All** option and click on the destroy pipeline created [above](#creating-destroy-pipeline)
+- Click on **Run Pipeline** from top right corner
+- Select **Apply Option** as **No** and click on **Variables** option.
+- Click on the variable name **RESOURCE_NAME** and provide the resource name to be destroyed.
+- Click on **Update** button and go back.
+- Click on **Run** button
+- Follow the Pipeline Status
+
+**Note :** - It is recommended to keep **Apply Option** as **No** for first time. Once satisfied with the Terraform Plan output you neeed to rerun the Pipeline keeping **Apply Option** as **Yes**.
+
+# Pipeline Parameters
 
 ### General Parameters
 
@@ -168,10 +174,10 @@ Parameters|Options|Comments
 |Please choose Apply Option|No / Yes| This switches on / off Terraform Apply command.|
 |Select the Subscription to deploy|List of Subscription Name| The subscription where the resource will be deployed.|
 |Please choose Resource Group Name|List of resource group to deploy| This selects the Resource Group where the resource will be deployed. **Note** that Azure DevOps Pipeline does not support conditional parameters yet and you should select the Resouce Group based on your subscription selection.|
-|Select the Environment| List of Environment from [Naming tool Environment Component Configuration](#component-configuration)| This selects the environment value in the resource name.|
-|Select the Organization|List of Organization from [Naming tool Environment Component Configuration](#component-configuration)| This selects the organization value in the resource name.|
-|Select the Function|List of Function from [Naming tool Environment Component Configuration](#component-configuration)|This selects the function value in the resource name.|
-|Select the Project|List of Project from [Naming tool Environment Component Configuration](#component-configuration)| This selects the project value in the resource name.|
+|Select the Environment| List of Environments| This selects the environment value in the resource name.|
+|Select the Organization| List of Organizations | This selects the organization value in the resource name.|
+|Select the Function| List of Functions | This selects the function value in the resource name. |
+|Select the Project|List of Projects | This selects the project value in the resource name.|
 
 ### Storage Account Parameters
 
@@ -197,17 +203,6 @@ Storage Account
 Additional Files
 
 # Destroy the Infrastructure
-
-## Run Destroy Pipeline
-
-To run destroy pipeline please follow the steps below -
-
-- Go to Azure DevOps Pipeline and click on **self-service-destroy-storage-account** pipeline.
-- Click on **Run Pipeline** from top right corner.
-- Choose the **Subscription** of the Resource to be destroyed.
-- Click on **Variables** and then on **RESOURCE_NAME**
-- Provide the resource name which was created in [deploy process](#deploy-the-infrastructure).
-- Click on **Run** button
 
 ## Verify Destroyed Resource
 
