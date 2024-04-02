@@ -34,7 +34,6 @@ Azure DevOps Pipeline requires Service Connection to run tasks. The Service Prin
 |:---|:---|
 |ARM-CLIENT-ID|Application ID of the Service Principle|
 |ARM-CLIENT-SECRET|Client Secret of the Service Principle|
-|ARM-SUBSCRIPTION-ID|Subscription ID of the Key Vault|
 |ARM-TENANT-ID|Azure Tenant ID|
 
 ## Configure Azure Naming Tool
@@ -64,7 +63,6 @@ Secrets to be created in Azure Key Vault
 ```
 ARM-CLIENT-ID
 ARM-CLIENT-SECRET
-ARM-SUBSCRIPTION-ID
 ARM-TENANT-ID
 ARM-ACCESS-KEY
 SA-NAME
@@ -130,8 +128,9 @@ Please follow the instruction to run deploy pipelines
 - Go to **Pipelines** in Azure DevOps.
 - Click on **All** option and click on the deploy pipeline created [above](#creating-deploy-pipeline)
 - Click on **Run Pipeline** from top right corner
-- Fill up / select all the required mentioned [here](#pipeline-parameters)
+- Fill up / select all the required parameters mentioned [here](#pipeline-parameters)
 - Click on **Run** Button
+- Follow the Pipeline Status
 
 ## Creating Destroy Pipeline
 
