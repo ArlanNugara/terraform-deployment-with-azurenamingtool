@@ -1,0 +1,257 @@
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+parameters:
+- name: Apply
+  displayName: Please choose Apply Option
+  type: string
+  values:
+  - No
+  - Yes
+- name: Subscription
+  displayName: Select the Subscription to deploy
+  type: string
+  values:
+  - SUB-1
+  - SUB-2
+- name: Environment
+  displayName: Select the Environment to deploy
+  type: string
+  values:
+  - dev
+  - prod
+  - sbx
+  - uat
+- name: Location
+  displayName: Select the Location to Deploy
+  type: string
+  values:
+  - East US
+  - East US 2
+  - Canada Central
+- name: Organization
+  displayName: Select the Organization to Deploy
+  type: string
+  values:
+  - org1
+  - org2
+  - org3
+- name: Function
+  displayName: Select the Function
+  type: string
+  values:
+  - it
+  - hr
+- name: Project
+  displayName: Select the Project
+  type: string
+  values:
+  - project1
+  - project2
+  - project3
+  - project4
+- name: ResourceGroupName
+  displayName: Please choose Resource Group Name
+  type: string
+  values:
+  - self-service-terraform-naming-tool-001
+  - self-service-terraform-naming-tool-002
+- name: StorageAccountKind
+  displayName: Please choose Storage Account Kind
+  type: string
+  values:
+  - StorageV2
+  - BlobStorage
+  - BlockBlobStorage
+  - FileStorage
+  - Storage
+- name: StorageAccountTier
+  displayName: Please choose Storage Account Tier
+  type: string
+  values:
+  - Standard
+  - Premium
+- name: StorageAccountReplicationType
+  displayName: Please choose Storage Account Replication Type
+  type: string
+  values:
+  - LRS
+  - GRS
+  - RAGRS
+  - ZRS
+  - GZRS
+  - RAGZRS
+- name: StorageAccountHNS
+  displayName: Please choose Storage Account Hierarchical Namespace
+  type: string
+  values:
+  - false
+  - true
+
+variables:
+  - name: AZURE_SERVICE_CONNECTION
+    value: 'PLACEHOLDER'
+  - group: 'PLACEHOLDER'
+  - name: SUBSCRIPTION_ID
+    ${{ if eq(parameters.Subscription, 'SUB-1') }}:
+      value: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx
+    ${{ if eq(parameters.Subscription, 'SUB-2') }}:
+      value: yyyyy-yyyyy-yyyyy-yyyyy-yyyyy
+  - name: LOCATION
+    ${{ if eq(parameters.Location, 'East US') }}:
+      value: us1
+    ${{ if eq(parameters.Location, 'East US 2') }}:
+      value: us2
+    ${{ if eq(parameters.Location, 'Canada Central') }}:
+      value: cc
+
+stages:
+  - stage: get
+    displayName: 'Get Name'
+    jobs:
+      - job: get_name
+        displayName: 'Get Resource Name'
+        steps:
+        - task: Shell++@0
+          displayName: 'Query Naming Tool API'
+          inputs:
+            type: 'InlineScript'
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            cwd: '$(System.DefaultWorkingDirectory)'
+            script: |
+              export API_KEY=$(API_KEY)
+              export API_URL=$(API_URL)
+              echo `curl -X 'POST' '$(API_URL)' -H 'accept: */*' -H 'APIKey: $(API_KEY)' -H 'Content-Type: application/json' -d '{"resourceEnvironment": "${{ parameters.ENVIRONMENT }}","resourceFunction": "${{ parameters.FUNCTION }}","resourceInstance": "001","resourceLocation": "${{ variables.LOCATION }}","resourceOrg": "${{ parameters.ORGANIZATION }}","resourceProjAppSvc": "${{ parameters.PROJECT }}","resourceType": "st"}'` > name.json
+        - task: Shell++@0
+          displayName: 'Get Resource Name'
+          inputs:
+            type: 'InlineScript'
+            cwd: '$(System.DefaultWorkingDirectory)'
+            script: |
+              python3 get_names.py
+        - task: Shell++@0
+          displayName: 'Create Tfvars File'
+          inputs:
+            type: 'InlineScript'
+            cwd: '$(System.DefaultWorkingDirectory)'
+            script: |
+              echo "# Resource Name" > terraform.auto.tfvars
+              echo "name = \"`python3 get_names.py`\"" >> terraform.auto.tfvars
+              echo "# Subscription ID" >> terraform.auto.tfvars
+              echo "subscription_id = \"${{ variables.SUBSCRIPTION_ID }}\"" >> terraform.auto.tfvars
+              echo "# Resource group Name" >> terraform.auto.tfvars
+              echo "rg = \"${{ parameters.ResourceGroupName }}\"" >> terraform.auto.tfvars
+              echo "# Storage Account Kind" >> terraform.auto.tfvars
+              echo "st_account_kind = \"${{ parameters.StorageAccountKind }}\"" >> terraform.auto.tfvars
+              echo "# Storage Account Tier" >> terraform.auto.tfvars
+              echo "st_account_tier = \"${{ parameters.StorageAccountTier }}\"" >> terraform.auto.tfvars
+              echo "# Storage Account Replication Type" >> terraform.auto.tfvars
+              echo "st_replication_type = \"${{ parameters.StorageAccountReplicationType }}\"" >> terraform.auto.tfvars
+              echo "# Storage Account HNS" >> terraform.auto.tfvars
+              echo "st_hns = ${{ parameters.StorageAccountHNS }}" >> terraform.auto.tfvars
+        - task: CopyFiles@2
+          displayName: 'Copy TFVARS file'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(System.DefaultWorkingDirectory)
+            sourceFolder: '$(System.DefaultWorkingDirectory)'
+            contents: 'terraform.auto.tfvars'
+            targetFolder: '$(Build.ArtifactStagingDirectory)'
+        - task: PublishBuildArtifacts@1
+          displayName: 'Publish TFVARS Artifacts'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(System.DefaultWorkingDirectory)
+            pathToPublish: '$(Build.ArtifactStagingDirectory)'
+            artifactName: tfvars
+  
+  - stage: planapply
+    displayName: 'Run Plan and Apply'
+    dependsOn: get
+    condition: and(succeeded(), eq('${{ parameters.Apply }}', 'Yes'))
+    jobs:
+      - job: terraform_plan_apply
+        displayName: 'Apply the Infrastructure'
+        timeoutInMinutes: 360
+        steps:
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+          displayName: 'Install latest Terraform'
+        
+        - task: DownloadPipelineArtifact@2
+          displayName: 'Download TFVARS Artifacts'
+          inputs:
+            artifactName: tfvars
+            targetPath: $(Build.Repository.LocalPath)
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : FMT'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              terraform fmt -check -recursive -diff
+        
+        - task: AzureCLI@2
+          displayName: 'Terraform : INIT'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              TFSTATE_FILE=`cat terraform.auto.tfvars | grep "name =" | cut -d "=" -f 2 | cut -d " " -f 2 | tr -d '"'`
+              terraform init -reconfigure -backend-config="key=$TFSTATE_FILE.terraform.tfstates"
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : VALIDATE'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              terraform validate
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : PLAN'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              terraform plan -out st.json
+              terraform show -json st.json
+        
+        - task: AzureCLI@2
+          displayName: 'Terraform : APPLY'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export SA_NAME=$(SA_NAME)
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              export ARM_ACCESS_KEY=$(ARM_ACCESS_KEY)
+              TFSTATE_FILE=`cat terraform.auto.tfvars | grep "name =" | cut -d "=" -f 2 | cut -d " " -f 2 | tr -d '"'`
+              az storage blob upload --account-name $(SA_NAME) --container-name "tfstate" --account-key $(ARM_ACCESS_KEY) --file "$(Build.Repository.LocalPath)/terraform.auto.tfvars" --name "$TFSTATE_FILE.auto.tfvars" --overwrite true
+              terraform apply st.json

@@ -1,0 +1,123 @@
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+parameters:
+- name: Apply
+  displayName: Please choose Apply Option
+  type: string
+  values:
+  - No
+  - Yes
+- name: Subscription
+  displayName: Select the Subscription to deploy
+  type: string
+  values:
+  - SUB-1
+  - SUB-2
+
+variables:
+  - name: AZURE_SERVICE_CONNECTION
+    value: 'PLACEHOLDER'
+  - group: 'PLACEHOLDER'
+  - name: SUBSCRIPTION_ID
+    ${{ if eq(parameters.Subscription, 'SUB-1') }}:
+      value: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx
+    ${{ if eq(parameters.Subscription, 'SUB-2') }}:
+      value: yyyyy-yyyyy-yyyyy-yyyyy-yyyyy
+
+stages:
+  - stage: planapply
+    displayName: 'Run Destroy Plan and Apply'
+    jobs:
+      - job: terraform_plan_apply
+        displayName: 'Destroy the Resource'
+        timeoutInMinutes: 360
+        steps:
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+          displayName: 'Install latest Terraform'
+
+        - task: AzureCLI@2
+          displayName: 'Getting Started'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_ACCESS_KEY=$(ARM_ACCESS_KEY)
+              export SA_NAME=$(SA_NAME)
+              az storage blob download --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).auto.tfvars" -f "$(Build.Repository.LocalPath)/$(RESOURCE_NAME).auto.tfvars"
+              ls -ltrh
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : INIT'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              terraform init -reconfigure -backend-config="key=$(RESOURCE_NAME).terraform.tfstates"
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : VALIDATE'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              terraform validate
+
+        - task: AzureCLI@2
+          displayName: 'Terraform : PLAN'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              terraform plan -destroy -var-file="$(RESOURCE_NAME).auto.tfvars" -out $(RESOURCE_NAME).json
+              terraform show -json $(RESOURCE_NAME).json
+        
+        - task: AzureCLI@2
+          condition: and(succeeded(), eq('${{ parameters.Apply }}', 'Yes'))
+          displayName: 'Terraform : APPLY'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+              export ARM_SUBSCRIPTION_ID=${{ variables.SUBSCRIPTION_ID }}
+              terraform apply $(RESOURCE_NAME).json
+        
+        - task: AzureCLI@2
+          condition: and(succeeded(), eq('${{ parameters.Apply }}', 'Yes'))
+          displayName: 'Delete State and Var Files'
+          inputs:
+            azureSubscription: $(AZURE_SERVICE_CONNECTION)
+            workingDirectory: $(Build.Repository.LocalPath)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              export ARM_ACCESS_KEY=$(ARM_ACCESS_KEY)
+              export SA_NAME=$(SA_NAME)
+              az storage blob delete --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).auto.tfvars"
+              az storage blob delete --account-name $(SA_NAME) -c "tfstate" --account-key $(ARM_ACCESS_KEY) --subscription ${{ variables.SUBSCRIPTION_ID }} -n "$(RESOURCE_NAME).terraform.tfstates"
